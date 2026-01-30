@@ -1,0 +1,17 @@
+﻿name: quant
+channels:
+  - defaults
+  - https://repo.anaconda.com/pkgs/main
+  - https://repo.anaconda.com/pkgs/r
+  - https://repo.anaconda.com/pkgs/msys2
+  - conda-forge
+dependencies:
+  - python=3.12
+  - ipykernel
+  - numpy
+  - pandas
+  - scipy
+  - statsmodels
+  - polars
+  - jupyterlab
+prefix: C:\Users\johng\miniforge3\envs\quant

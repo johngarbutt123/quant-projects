@@ -5,13 +5,21 @@ __pycache__/
 *.pyd
 .ipynb_checkpoints/
 
-# Conda
+# Environments
 .env
 .env.*
+.venv/
+conda-meta/
 
 # Data
 data/raw/
 data/interim/
+
+# Large Model outputs
+*.parquet
+*.h5
+*.feather
+*.npz
 
 # VS Code
 .vscode/
