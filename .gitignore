@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.ipynb_checkpoints/
+
+# Conda
+.env
+.env.*
+
+# Data
+data/raw/
+data/interim/
+
+# VS Code
+.vscode/
+
+# OS junk
+.DS_Store
+Thumbs.db
