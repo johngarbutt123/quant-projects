@@ -49,6 +49,6 @@ def get_bbg_data(
         df = df.rename(columns=field_names, level="field")
 
     if flatten:
-        df.columns = [f"{t}_{f}" if f else t for t, f in df.columns]
+        df.columns = [f"{t}-{f}" if f else t for t, f in df.columns]
 
     return df
