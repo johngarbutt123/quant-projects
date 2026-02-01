@@ -14,7 +14,9 @@ def prices_to_returns(
     ----------
     prices : pd.DataFrame
         Price time series.
-    method : {"log", "simple"}
+    method:
+        - 'log'    : log(P_t / P_{t-1})
+        - 'simple' : P_t / P_{t-1} - 1
     dropna : bool
         Drop initial NaN row.
 
@@ -29,7 +31,20 @@ def prices_to_returns(
     else:
         raise ValueError("method must be 'log' or 'simple'")
 
-    if dropna:
-        rets = rets.dropna(how="all")
+    return rets.dropna(how="all") if dropna else rets
 
-    return rets
+
+def prices_to_diffs(
+    prices: pd.DataFrame,
+    dropna: bool = True,
+) -> pd.DataFrame:
+    """
+    Convert level series to first differences.
+
+    Intended for:
+    - yields
+    - spreads
+    - macro level series
+    """
+    diffs = prices.diff()
+    return diffs.dropna(how="all") if dropna else diffs
