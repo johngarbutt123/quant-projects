@@ -7,6 +7,7 @@ import pandas as pd
 def momentum_sign(
     prices: pd.DataFrame,
     lookback: int,
+    eps: float = 0.002,
     min_periods: int | None = None,
 ) -> pd.DataFrame:
     """
@@ -19,6 +20,9 @@ def momentum_sign(
         Price panel (date × asset).
     lookback : int
         Lookback in rows (e.g., months if prices are monthly).
+    eps : float
+        Minimum absolute return move required over the lookback window
+         before we call it up/down. Smaller moves are treated as 0.
     min_periods : int | None
         Minimum observations required. Defaults to lookback.
 
@@ -38,7 +42,17 @@ def momentum_sign(
         prices.notna().rolling(window=lookback + 1, min_periods=min_periods + 1).sum()
         > min_periods
     )
-    sig = np.sign(prices - prices.shift(lookback))
+
+    delta = prices - prices.shift(lookback)
+
+    # return for scaling only
+    r = prices / prices.shift(lookback) - 1
+
+    sig = np.sign(delta)
+
+    # APPLY DEADBAND IN RETURN SPACE (scale-free)
+    sig = sig.where(r.abs() > eps, other=0.0)
+
     sig = sig.where(valid)  # keep NaN where insufficient history
 
     return sig
@@ -47,6 +61,7 @@ def momentum_sign(
 def composite_trend_signal(
     prices: pd.DataFrame,
     lookbacks: tuple[int, ...] = (3, 6, 12),
+    eps: float = 0.002,
     weights: tuple[float, ...] | None = None,
 ) -> pd.DataFrame:
     """
@@ -60,6 +75,9 @@ def composite_trend_signal(
     ----------
     prices : pd.DataFrame
     lookbacks : tuple[int, ...]
+    eps : float
+        Minimum absolute return move required over the lookback window
+         before we call it up/down. Smaller moves are treated as 0.
     weights : tuple[float, ...] | None
         If provided, must match lookbacks length.
 
@@ -81,16 +99,7 @@ def composite_trend_signal(
             raise ValueError("weights sum must be non-zero")
         w = w / w.sum()
 
-    sigs = [momentum_sign(prices, lb) for lb in lookbacks]
+    sigs = [momentum_sign(prices, lb, eps=eps) for lb in lookbacks]
     composite = sum(wi * si for wi, si in zip(w, sigs))
 
     return composite
-
-
-def clip_signal(
-    signal: pd.DataFrame, lo: float = -1.0, hi: float = 1.0
-) -> pd.DataFrame:
-    """
-    Clip continuous signals to a bounded range (useful later).
-    """
-    return signal.clip(lower=lo, upper=hi)

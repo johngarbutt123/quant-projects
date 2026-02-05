@@ -32,17 +32,17 @@ class MarketPanel:
 
 def _clean_index(df: pd.DataFrame) -> pd.DataFrame:
     """Sort index, drop duplicate timestamps (keep last), drop all-NaN rows."""
-    if not isinstance(df.index, pd.DatetimeIndex):
-        raise TypeError("DataFrame index must be a DatetimeIndex")
-
     out = df.copy()
+
+    # Coerce to DatetimeIndex if needed
+    if not isinstance(out.index, pd.DatetimeIndex):
+        out.index = pd.to_datetime(out.index, errors="coerce")
+
+    # Drop rows where index couldn't be parsed
+    out = out[~out.index.isna()]
+
     out = out.sort_index()
-
-    # Drop duplicate index entries (keep last observation)
-    if out.index.has_duplicates:
-        out = out[~out.index.duplicated(keep="last")]
-
-    # Drop rows where everything is NaN
+    out = out[~out.index.duplicated(keep="last")]
     out = out.dropna(how="all")
     return out
 

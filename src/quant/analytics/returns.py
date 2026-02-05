@@ -25,7 +25,9 @@ def prices_to_returns(
     pd.DataFrame
     """
     if method == "log":
-        rets = np.log(prices / prices.shift(1))
+        prices = prices.where(prices > 0)
+        rets = np.log(prices).diff()
+        # rets = np.log(prices / prices.shift(1))
     elif method == "simple":
         rets = prices.pct_change()
     else:

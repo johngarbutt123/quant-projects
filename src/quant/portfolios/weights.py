@@ -110,3 +110,68 @@ def apply_signal_to_base_weights(
     w = normalize_gross(w, gross=gross)
 
     return w
+
+
+def cap_gross(
+    weights: pd.DataFrame,
+    max_gross: float,
+) -> pd.DataFrame:
+    """
+    Cap gross exposure by scaling down only when sum(abs(w)) > max_gross.
+    Leaves weights unchanged when below the cap.
+    """
+    if max_gross <= 0:
+        raise ValueError("max_gross must be > 0")
+
+    gross = weights.abs().sum(axis=1)
+    scale = (max_gross / gross).clip(upper=1.0)
+    return weights.mul(scale, axis=0)
+
+
+def vol_target_weights(
+    signal_lagged: pd.DataFrame,
+    vol_lagged: pd.DataFrame,
+    target_vol: float,
+    *,
+    weight_cap: float | None = None,
+    max_gross: float | None = None,
+) -> pd.DataFrame:
+    """
+    Vol-target weights from a *lagged* signal and *lagged* annualised volatility.
+
+    Assumes:
+      - signal_lagged is already tradable (i.e., based on info up to t-1 for trading at t)
+      - vol_lagged is also tradable (e.g., rolling vol shifted by 1)
+
+    Formula:
+      w = signal * (target_vol / vol)
+
+    Then optionally:
+      - cap each asset weight to +/- weight_cap
+      - cap portfolio gross exposure to max_gross (scale down only)
+
+    Returns:
+      weights DataFrame aligned on common dates/assets and filled with 0.0.
+    """
+    if target_vol <= 0:
+        raise ValueError("target_vol must be > 0")
+
+    # Align dates/assets (inner join)
+    s, v = signal_lagged.align(vol_lagged, join="inner", axis=0)
+    s, v = s.align(v, join="inner", axis=1)
+
+    # Raw sizing
+    w = s * (target_vol / v)
+    w = w.replace([np.inf, -np.inf], np.nan)
+
+    # Per-asset cap
+    if weight_cap is not None:
+        if weight_cap <= 0:
+            raise ValueError("weight_cap must be > 0")
+        w = w.clip(lower=-weight_cap, upper=weight_cap)
+
+    # Gross cap (scale down only)
+    if max_gross is not None:
+        w = cap_gross(w, max_gross=max_gross)
+
+    return w.fillna(0.0)

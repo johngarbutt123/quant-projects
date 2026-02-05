@@ -1,10 +1,22 @@
+from __future__ import annotations
 import numpy as np
 import pandas as pd
+from typing import Union
+
+ReturnsLike = Union[pd.Series, pd.DataFrame]
 
 
-def equity_curve(returns: pd.Series, start: float = 1.0) -> pd.Series:
+def equity_curve(returns: ReturnsLike, start: float = 1.0) -> ReturnsLike:
     """
-    Convert simple returns to an equity curve (cumulative wealth index).
+    Convert simple returns into an equity curve (cumulative wealth index).
+
+    Works for:
+      - pd.Series: returns a pd.Series
+      - pd.DataFrame: returns a pd.DataFrame (column-wise equity curves)
+
+    Notes:
+      - NaNs are treated as 0 returns (i.e., flat) so the curve doesn't break.
+      - Input is assumed to be SIMPLE returns, not log returns.
     """
     r = returns.fillna(0.0)
     return start * (1.0 + r).cumprod()

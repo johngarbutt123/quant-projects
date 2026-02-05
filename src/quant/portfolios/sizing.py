@@ -1,15 +1,9 @@
 import numpy as np
 import pandas as pd
-
-
-def lag_positions(signal: pd.DataFrame, lag: int = 1) -> pd.DataFrame:
-    """
-    Lag signals to positions to avoid look-ahead bias.
-    Example: signal at t applied as position at t+1 => lag=1.
-    """
-    if lag < 0:
-        raise ValueError("lag must be >= 0")
-    return signal.shift(lag)
+from quant.analytics.transforms import clip_signal
+from quant.utils.timing import lag_for_trading
+# signals.py  →  what you THINK the market will do
+# sizing.py   →  how BIG you are willing to bet on that view
 
 
 def inverse_vol_positions(
@@ -40,11 +34,10 @@ def inverse_vol_positions(
     -------
     DataFrame of weights (date × asset).
     """
-    s = lag_positions(signal, lag=lag)
+    s = lag_for_trading(signal, lag=lag)
 
     # Align
-    s, v = s.align(asset_vol, join="inner", axis=0)
-    s, v = s.align(v, join="inner", axis=1)
+    s, v = signal.align(asset_vol, join="inner", axis=None)
 
     v = v.clip(lower=vol_floor)
     raw = s / v  # higher weight for lower vol assets
@@ -60,7 +53,7 @@ def target_portfolio_vol_scalar(
     weights: pd.DataFrame,
     covs: dict[pd.Timestamp, pd.DataFrame],
     target_vol: float = 0.10,
-    max_leverage: float | None = None,
+    max_scalar: float | None = None,
 ) -> pd.Series:
     """
     Compute a time series of scalars k_t such that:
@@ -69,6 +62,21 @@ def target_portfolio_vol_scalar(
 
     covs: dict keyed by date with annualised covariance matrix (same assets).
     If cov matrix missing for a date, scalar will be NaN.
+
+
+
+    5) Potential lookahead: are your covs dated correctly?
+
+    target_portfolio_vol_scalar() uses covs.get(dt) for the same dt as the weights row. That’s only safe if:
+
+    cov at dt was computed using data up to dt-1, and is stamped at dt.
+
+    If your cov dict is keyed by the end date of the window (same day), you might be leaking today’s return into today’s vol target (small but real lookahead).
+
+    Defensive fix: pass lag or use covs.get(dt - 1BDay) style, or build covs explicitly lagged.
+
+    (You may already be doing this upstream — just flagging it because it’s the most common hidden bug in vol targeting.)
+
     """
     scalars = {}
 
@@ -91,8 +99,8 @@ def target_portfolio_vol_scalar(
 
         k = target_vol / port_vol
 
-        if max_leverage is not None:
-            k = min(k, max_leverage)
+        if max_scalar is not None:
+            k = min(k, max_scalar)
 
         scalars[dt] = k
 
@@ -103,3 +111,21 @@ def apply_scalar(weights: pd.DataFrame, scalar: pd.Series) -> pd.DataFrame:
     """Multiply each row of weights by scalar at that date."""
     scalar = scalar.reindex(weights.index)
     return weights.mul(scalar, axis=0).fillna(0.0)
+
+
+def make_tradable_signal(
+    signal_raw: pd.DataFrame,
+    smooth_span: int = 40,
+    clip: float | None = 1.0,
+    lag: int = 1,
+) -> pd.DataFrame:
+    # 1) smooth (trading choice)
+    s = signal_raw.ewm(span=smooth_span, adjust=False).mean()
+
+    # 2) clip (risk discipline)
+    if clip is not None:
+        # Defensive bound (future-proofing, not strictly needed today as signal is already in [-1, 1])
+        s = clip_signal(s, -clip, clip)
+
+    # 3) Tradable lag (no lookahead) otherwise perfect foresight
+    return lag_for_trading(s, lag=lag)
