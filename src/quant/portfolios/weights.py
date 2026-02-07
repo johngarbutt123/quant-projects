@@ -144,7 +144,7 @@ def vol_target_weights(
       - vol_lagged is also tradable (e.g., rolling vol shifted by 1)
 
     Formula:
-      w = signal * (target_vol / vol)
+      w_i,t = signal_i,t-1 * (target_vol / vol_i,t-1)
 
     Then optionally:
       - cap each asset weight to +/- weight_cap
@@ -175,3 +175,60 @@ def vol_target_weights(
         w = cap_gross(w, max_gross=max_gross)
 
     return w.fillna(0.0)
+
+
+def scale_to_target_portfolio_vol(
+    weights: pd.DataFrame,
+    port_vol_tm1: pd.Series,
+    target_vol: float,
+    scale_cap: float | None = None,
+    max_gross: float | None = None,
+) -> pd.DataFrame:
+    """
+    Scale portfolio weights to a target annualised portfolio volatility.
+
+    Parameters
+    ----------
+    weights : DataFrame (T x N)
+        Day-t weights (already tradable for day t).
+    port_vol_tm1 : Series (T,)
+        Estimated portfolio vol using information up to t-1.
+    target_vol : float
+        Desired annualised portfolio volatility (e.g., 0.10).
+    scale_cap : float | None
+        Optional cap on scaling factor to avoid extreme leverage.
+    max_gross : float | None
+        Optional cap on final gross exposure.
+
+    Returns
+    -------
+    DataFrame of scaled weights.
+    """
+
+    # Gross exposure to detect flat days
+    gross = weights.abs().sum(axis=1)
+    flat = gross == 0
+
+    # Compute raw scale
+    scale = target_vol / port_vol_tm1
+
+    # Numerical clean-up
+    scale = scale.replace([np.inf, -np.inf], np.nan)
+
+    if scale_cap is not None:
+        scale = scale.clip(upper=scale_cap)
+
+    # Flat days stay flat
+    scale.loc[flat] = 0.0
+
+    # Early warm-up / missing data → flat
+    scale = scale.fillna(0.0)
+
+    # Apply scaling
+    w_out = weights.mul(scale, axis=0)
+
+    # Optional gross cap
+    if max_gross is not None:
+        w_out = cap_gross(w_out, max_gross=max_gross)
+
+    return w_out

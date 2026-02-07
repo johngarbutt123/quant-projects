@@ -17,7 +17,7 @@ def portfolio_variance(weights: pd.Series, cov: pd.DataFrame) -> float:
     """
     w = _to_series(weights, cov.index).values.reshape(-1, 1)
     sigma = cov.loc[cov.index, cov.index].values
-    return float(w.T @ sigma @ w)
+    return float((w.T @ sigma @ w).item())
 
 
 def portfolio_volatility(weights: pd.Series, cov: pd.DataFrame) -> float:
@@ -180,3 +180,39 @@ def risk_budget_weights(
         w = w_new
 
     return pd.Series(w, index=assets)
+
+
+def portfolio_vol_series_from_covs(
+    weights: pd.DataFrame,
+    covs: dict[pd.Timestamp, pd.DataFrame],
+    shift: int = 1,
+) -> pd.Series:
+    """
+    Compute a time series of annualised portfolio volatility from
+    a dict of rolling covariance matrices.
+
+    Parameters
+    ----------
+    weights : DataFrame
+        Weights indexed by date x assets (already tradable for date t).
+    covs : dict[Timestamp, DataFrame]
+        Rolling annualised covariance matrices keyed by window end-date.
+    shift : int
+        Lag to make the estimate tradable (1 = use cov up to t-1 for day t).
+
+    Returns
+    -------
+    pd.Series of portfolio vol, aligned to weights.index, lagged by `shift`.
+    """
+    port_vol = pd.Series(index=weights.index, dtype=float)
+
+    for dt in weights.index:
+        cov = covs.get(dt)
+        if cov is None:
+            port_vol.loc[dt] = np.nan
+            continue
+
+        w_t = weights.loc[dt]
+        port_vol.loc[dt] = portfolio_volatility(w_t, cov)
+
+    return port_vol.shift(shift)
