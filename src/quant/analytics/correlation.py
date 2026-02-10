@@ -62,7 +62,22 @@ def rolling_covariance(
     min_periods: int | None = None,
 ) -> dict[pd.Timestamp, pd.DataFrame]:
     """
-    Rolling annualised covariance matrices.
+    Compute rolling, annualised covariance matrices.
+
+    Each covariance matrix is labelled by the *end date of the window*.
+    This means:
+
+        covs[t]  = covariance estimated using returns up to and including t
+
+    Important timing convention:
+    ----------------------------
+    - covs[t] is only known at the *end of day t*.
+    - Therefore, for trading on day t, we must later use covs[t-1]
+      (i.e., shift by 1 in whatever uses these covs).
+
+    This function intentionally does NOT apply any lag itself — it is purely
+    an estimator.  Trading timing is handled downstream.
+    i.e. on day t, we can only use covs[t-1] to make trading decisions, since covs[t] is only known at the end of day t.
     """
     if window <= 1:
         raise ValueError("window must be > 1")

@@ -128,7 +128,7 @@ def cap_gross(
     return weights.mul(scale, axis=0)
 
 
-def vol_target_weights(
+def asset_vol_target_weights(
     signal_lagged: pd.DataFrame,
     vol_lagged: pd.DataFrame,
     target_vol: float,
@@ -177,7 +177,7 @@ def vol_target_weights(
     return w.fillna(0.0)
 
 
-def scale_to_target_portfolio_vol(
+def portfolio_vol_target_weights(
     weights: pd.DataFrame,
     port_vol_tm1: pd.Series,
     target_vol: float,
